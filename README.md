@@ -1,6 +1,6 @@
 # TSP Bangladesh – Real‑World Routing Algorithm
 
-![TSP Bangladesh Route Preview](./assets/TSP Bangladesh Map.png) – Real‑World Routing Algorithm
+ ![Image Alt](https://github.com/halimAhtasham/Travelling-Sales-Man-Problem-Applied-to-Bangladesh-s-District-Network/blob/ff6ffc9cd7ef96f84b76c5f2215025c6516ec800/assets/TSP%20Bangladesh%20Map.png)
 
 A comprehensive implementation of the Travelling Salesman Problem (TSP) for Bangladesh's 64 districts. This project blends traditional heuristics with modern data-driven enhancements to generate practical, near-optimal travel routes.
 
