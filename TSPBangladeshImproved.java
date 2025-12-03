@@ -5,12 +5,6 @@ import java.net.http.*;
 
 /**
  * TSP Bangladesh with Real Road Distances
- * 
- * Improvements:
- * 1. Uses actual road distances via Google Maps Distance Matrix API
- * 2. Caches distances to avoid repeated API calls
- * 3. Falls back to Haversine distance for missing routes
- * 4. Better heuristics with geographical awareness
  */
 public class TSPBangladeshImproved {
 
