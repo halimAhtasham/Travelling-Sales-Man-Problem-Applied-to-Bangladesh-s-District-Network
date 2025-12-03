@@ -1,11 +1,5 @@
 import java.util.*;
-import java.io.*;
-import java.net.*;
-import java.net.http.*;
 
-/**
- * TSP Bangladesh with Real Road Distances
- */
 public class TSPBangladeshImproved {
 
     private Map<String, Map<String, Double>> graph;
@@ -14,6 +8,9 @@ public class TSPBangladeshImproved {
     private final String startDistrict = "Dhaka";
     private final Random rng;
     private Map<String, Double> distanceCache;
+    
+    // Define mandatory route sequences
+    private List<List<String>> mandatorySequences;
 
     // Store district coordinates for Haversine fallback
     static class DistrictCoords {
@@ -29,10 +26,32 @@ public class TSPBangladeshImproved {
         coordinates = new HashMap<>();
         allDistricts = new ArrayList<>();
         distanceCache = new HashMap<>();
+        mandatorySequences = new ArrayList<>();
         rng = new Random(seed);
         initializeDistricts();
         initializeCoordinates();
         initializeEdges();
+        initializeMandatoryRoutes();
+    }
+    
+
+    //  * Define routes that MUST be followed in this exact order
+    private void initializeMandatoryRoutes() {
+        // Example 1: Meherpur -> Kushtia -> Rajshahi -> Chapainawabganj -> Naogaon -> Natore -> Pabna -> Rajbari
+        mandatorySequences.add(Arrays.asList(
+            "Meherpur", "Kushtia", "Rajshahi", "Chapainawabganj", 
+            "Naogaon", "Natore", "Pabna", "Rajbari"
+        ));
+        
+        // mandatorySequences.add(Arrays.asList(
+        //     "Dhaka", "Gazipur", "Tangail", "Sirajganj", "Bogura", "Joypurhat", "Dinajpur","Thakurgaon", "Panchagarh", "Nilphamari",
+        // "Rangpur", "Lalmonirhat", "Kurigram", "Gaibandha", "Jamalpur", "Sherpur", "Mymensingh", "Netrokona", "Sunamganj", "Sylhet", "Moulvibazar","Habiganj","Kishoreganj","Narsingdi","Brahmanbaria","Comilla","Khagrachhari","Rangamati","Bandarban","Cox's Bazar","Chittagong","Feni","Noakhali","Lakshmipur","Bhola",
+        // "Barisal", "Patuakhali", "Borguna", "Jhalokati", "Pirojpur","Bagerhat","Khulna","satkhira", "Jessore", "Narail", "Magura", "Jhenaidah", "Chuadanga",
+        // "Meherpur", "Kushtia", "Rajshahi", "Chapainawabganj", "Naogaon", "Natore", "Pabna", "Rajbari", "Manikganj", "Faridpur", "Gopalganj", "Madaripur", "Shariatpur","Chandpur", "Munshiganj", "Narayanganj"
+        // ));
+        // mandatorySequences.add(Arrays.asList("Bogura", "Joypurhat", "Dinajpur"));
+        // mandatorySequences.add(Arrays.asList("Lakshmipur", "Bhola", "Barisal"));
+        // mandatorySequences.add(Arrays.asList("Kishoreganj", "Narsingdi", "Brahmanbaria"));
     }
 
     private void initializeDistricts() {
@@ -420,10 +439,9 @@ public class TSPBangladeshImproved {
         addEdge("Pirojpur", "Barguna", 68.3);
     }
 
-    /**
-     * Calculate Haversine distance between two districts
-     * This gives straight-line distance, multiply by 1.3 for road estimate
-     */
+    
+    //  Calculate Haversine distance between two districts(*1.3)
+
     private double calculateHaversineDistance(String a, String b) {
         DistrictCoords c1 = coordinates.get(a);
         DistrictCoords c2 = coordinates.get(b);
@@ -439,13 +457,13 @@ public class TSPBangladeshImproved {
                 Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2);
         double c = 2 * Math.atan2(Math.sqrt(a_calc), Math.sqrt(1-a_calc));
         
-        // Multiply by 1.3 to approximate road distance (roads aren't straight)
+        // *1.3 to approximate road distance (roads aren't straight)
         return R * c * 1.3;
     }
 
     /**
      * Get distance between two districts
-     * Uses: 1) Existing edge, 2) Cached distance, 3) Haversine estimate
+     * 1) Existing edge, 2) Cached distance, 3) Haversine estimate
      */
     public double getDistance(String a, String b) {
         // Check if direct edge exists
@@ -466,7 +484,7 @@ public class TSPBangladeshImproved {
     }
 
     /**
-     * Improved Nearest Neighbor with geographic awareness
+     * Improved Nearest Neighbor with mandatory sequences enforced
      */
     public List<String> nearestNeighborFrom(String start) {
         Set<String> visited = new HashSet<>();
@@ -476,23 +494,51 @@ public class TSPBangladeshImproved {
         visited.add(current);
 
         while (visited.size() < allDistricts.size()) {
-            String best = null;
-            double bestDist = Double.POSITIVE_INFINITY;
+            String next = null;
             
-            for (String candidate : allDistricts) {
-                if (!visited.contains(candidate)) {
-                    double dist = getDistance(current, candidate);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        best = candidate;
+            // Check if current city is start of a mandatory sequence
+            for (List<String> sequence : mandatorySequences) {
+                if (sequence.contains(current)) {
+                    int idx = sequence.indexOf(current);
+                    // Check if we should follow this sequence
+                    if (idx < sequence.size() - 1) {
+                        String nextInSequence = sequence.get(idx + 1);
+                        if (!visited.contains(nextInSequence)) {
+                            // Verify all districts before this in sequence are visited
+                            boolean canFollow = true;
+                            for (int i = 0; i < idx; i++) {
+                                if (!visited.contains(sequence.get(i))) {
+                                    canFollow = false;
+                                    break;
+                                }
+                            }
+                            if (canFollow) {
+                                next = nextInSequence;
+                                break;
+                            }
+                        }
                     }
                 }
             }
             
-            if (best == null) break;
-            tour.add(best);
-            visited.add(best);
-            current = best;
+            // If no mandatory sequence applies, find nearest unvisited
+            if (next == null) {
+                double bestDist = Double.POSITIVE_INFINITY;
+                for (String candidate : allDistricts) {
+                    if (!visited.contains(candidate)) {
+                        double dist = getDistance(current, candidate);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            next = candidate;
+                        }
+                    }
+                }
+            }
+            
+            if (next == null) break;
+            tour.add(next);
+            visited.add(next);
+            current = next;
         }
         
         // Close the tour
@@ -512,9 +558,9 @@ public class TSPBangladeshImproved {
         return total;
     }
 
-    /**
-     * 2-Opt improvement
-     */
+    
+    //  2-Opt improvement
+     
     public List<String> twoOptImprove(List<String> tour) {
         if (tour == null || tour.size() < 4) return tour;
         List<String> best = new ArrayList<>(tour);
@@ -526,6 +572,11 @@ public class TSPBangladeshImproved {
             
             for (int i = 1; i < n - 2; i++) {
                 for (int j = i + 1; j < n - 1; j++) {
+                    // Check if this swap would break mandatory sequences
+                    if (wouldBreakMandatorySequence(best, i, j)) {
+                        continue;
+                    }
+                    
                     String A = best.get(i - 1);
                     String B = best.get(i);
                     String C = best.get(j);
@@ -542,6 +593,39 @@ public class TSPBangladeshImproved {
             }
         }
         return best;
+    }
+    
+    /**
+     * Check if reversing tour[i...j] would break any mandatory sequence
+     */
+    private boolean wouldBreakMandatorySequence(List<String> tour, int i, int j) {
+        for (List<String> sequence : mandatorySequences) {
+            // Find all positions of sequence districts in the tour segment
+            List<Integer> positions = new ArrayList<>();
+            for (int k = i; k <= j; k++) {
+                if (sequence.contains(tour.get(k))) {
+                    positions.add(k);
+                }
+            }
+            
+            // If we have 2+ districts from a sequence in the segment
+            if (positions.size() >= 2) {
+                // Check if they're in the correct order
+                for (int p = 0; p < positions.size() - 1; p++) {
+                    String current = tour.get(positions.get(p));
+                    String next = tour.get(positions.get(p + 1));
+                    
+                    int currentIdx = sequence.indexOf(current);
+                    int nextIdx = sequence.indexOf(next);
+                    
+                    // They must appear in increasing order in the sequence
+                    if (currentIdx >= nextIdx) {
+                        return true; // Would break the sequence
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void reverseSubList(List<String> list, int i, int j) {
@@ -630,9 +714,8 @@ public class TSPBangladeshImproved {
         long seed = System.currentTimeMillis();
         TSPBangladeshImproved tsp = new TSPBangladeshImproved(seed);
 
-        System.out.println("=== TSP Bangladesh - Improved Solver ===");
+        System.out.println("TSP Bangladesh - Improved Solver");
         System.out.println("Total districts: " + tsp.allDistricts.size());
-        System.out.println("Starting from: " + tsp.startDistrict);
         System.out.println("\nRunning optimization...\n");
 
         long t0 = System.currentTimeMillis();
@@ -641,10 +724,5 @@ public class TSPBangladeshImproved {
 
         System.out.println("\nCompleted in " + (t1 - t0) + " ms");
         tsp.printTour(result.tour);
-        
-        System.out.println("\n=== NOTES ===");
-        System.out.println("• Distances use real highway data where available");
-        System.out.println("• Missing routes estimated using geographic distance × 1.3");
-        System.out.println("• For production use, integrate Google Maps Distance Matrix API");
     }
 }
